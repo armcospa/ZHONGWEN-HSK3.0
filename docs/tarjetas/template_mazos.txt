@@ -1,47 +1,44 @@
 # Itinerario recomendado: mazos filtrados
 
-Mazos de origen: `Chino - HSK1 (HSK 3.0)` ... `Chino - HSK4 (HSK 3.0)`, con
-tarjetas nuevas/día = 0 y repasos máximos/día = 0. Crea estos cuatro mazos
-filtrados en Anki Desktop y sincronízalos con AnkiWeb para estudiarlos también
-en el móvil. En cada uno:
+Búsquedas para copiar y pegar. Las instrucciones completas están en el README
+(sección «Itinerario recomendado: mazos filtrados»).
 
-- Filtro 1 (repasos de todos los niveles): límite 9999, orden «Orden de revisión».
-- Filtro 2 (nuevas del nivel que estés estudiando): límite 10-15, orden «Orden añadido».
+En cada mazo filtrado:
+- Filtro 1: repasos de todos los niveles. Límite 9999, orden «Orden de revisión».
+- Filtro 2 (marca la casilla para activarlo): nuevas del nivel que estés
+  estudiando. Límite 10-15, orden «Orden añadido».
 - Activa «Reprogramar tarjetas según mis respuestas».
-- Pulsa «Reconstruir» antes de cada sesión.
 
-Cuando termines un nivel, cambia `HSK1` por el siguiente en el filtro 2.
+Las dos búsquedas de un mismo mazo llevan el mismo «card:». Cuando termines un
+nivel, cambia HSK1 por el siguiente solo en el filtro 2.
 
-## Hanzi ← pinyin y significado (`PM2H`)
 
-```text
-deck:"Chino - HSK*" card:PM2H is:due
-deck:"Chino - HSK1 (HSK 3.0)" card:PM2H is:new
-```
+## Hanzi ← pinyin y significado (PM2H)
 
-## Pinyin ← hanzi (`H2P`)
+Filtro 1:  deck:"Chino - HSK*" card:PM2H is:due
+Filtro 2:  deck:"Chino - HSK1 (HSK 3.0)" card:PM2H is:new
 
-```text
-deck:"Chino - HSK*" card:H2P is:due
-deck:"Chino - HSK1 (HSK 3.0)" card:H2P is:new
-```
 
-## Pinyin ← significado (`M2P`)
+## Pinyin ← hanzi (H2P)
 
-```text
-deck:"Chino - HSK*" card:M2P is:due
-deck:"Chino - HSK1 (HSK 3.0)" card:M2P is:new
-```
+Filtro 1:  deck:"Chino - HSK*" card:H2P is:due
+Filtro 2:  deck:"Chino - HSK1 (HSK 3.0)" card:H2P is:new
 
-## Significado ← hanzi y pinyin (`HP2M`)
 
-```text
-deck:"Chino - HSK*" card:HP2M is:due
-deck:"Chino - HSK1 (HSK 3.0)" card:HP2M is:new
-```
+## Pinyin ← significado (M2P)
 
-## Opcionales
+Filtro 1:  deck:"Chino - HSK*" card:M2P is:due
+Filtro 2:  deck:"Chino - HSK1 (HSK 3.0)" card:M2P is:new
 
-Usa el mismo patrón con `H2M`, `M2H`, `P2M`, `P2H` o `HM2P` si quieres
-entrenar esa dirección. Para consultar `Toda la información`, usa solo
-`card:"Toda la información"` y desactiva la reprogramación.
+
+## Significado ← hanzi y pinyin (HP2M)
+
+Filtro 1:  deck:"Chino - HSK*" card:HP2M is:due
+Filtro 2:  deck:"Chino - HSK1 (HSK 3.0)" card:HP2M is:new
+
+
+## Otras direcciones
+
+El mismo patrón sirve con H2M, M2H, P2M, P2H o HM2P. Para consultar
+«Toda la información», crea un mazo filtrado con un solo filtro,
+card:"Toda la información", y desactiva la reprogramación.

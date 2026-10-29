@@ -34,7 +34,7 @@ vendor/hanzi-writer/     # HanziWriter + datos de trazos por carácter (terceros
 data/hskN/input.tsv     # vocabulario de cada nivel (fuente de verdad)
 data/hskN/output.tsv    # generado, ignorado por git
 decks/HSKN.apkg         # mazos publicados
-docs/                   # documentación: FUNCIONALIDADES.md, tarjetas/ (especificación
+docs/                   # documentación: GUIA_ANKI.md, tarjetas/ (especificación
                         # y mazos filtrados), images/ (capturas), local/ (ignorada)
 tests/
 ```
@@ -187,9 +187,18 @@ Después, une las columnas al `input.tsv` por la columna `Simplified` y en el mi
 ## Comprobaciones antes de publicar
 
 - `zhongwen-anki-build-all` sin errores.
-- `pytest` en verde. Lo ejecuta también el CI de GitHub (`.github/workflows/tests.yml`) en cada push y pull request. Incluye `tests/test_decks.py`, que compara los mazos publicados con las fuentes y comprueba que ningún nivel repite palabras de uno anterior, y `tests/test_pinyin_check.py`, que ejecuta con Node la corrección del pinyin de las tarjetas (se salta si Node no está instalado).
+- `pytest` en verde. Lo ejecuta también el CI de GitHub (`.github/workflows/tests.yml`) en cada push y pull request, con Python 3.10 y 3.12 y una pasada de `pyflakes`. Incluye `tests/test_decks.py`, que compara los mazos publicados con las fuentes y comprueba que ningún nivel repite palabras de uno anterior, y `tests/test_pinyin_check.py`, que ejecuta con Node la corrección del pinyin de las tarjetas (se salta si Node no está instalado).
 - Si cambia la estructura del tipo de nota, sigue las reglas de [Cambios en el tipo de nota](#cambios-en-el-tipo-de-nota-campos-y-tipos-de-tarjeta).
 
 ## Material local
 
 `docs/local/` está ignorada por git: guarda allí lo que no se publica (listados imprimibles, PDFs de referencia, notas de trabajo futuro y, en `docs/local/estadisticas/`, tu historial de repasos y su informe, que es donde los escriben por defecto `zhongwen-anki-export-stats` y `zhongwen-anki-analyze-stats`).
+
+## Ideas pendientes
+
+- **Audio:** generar la pronunciación de cada palabra (por ejemplo, con `edge-tts`) y añadirla como campo de audio. Ahora mismo los mazos no entrenan el oído.
+- **Caracteres tradicionales:** las tarjetas de dibujo solo piden el simplificado.
+- **Datos de trazos:** descargar automáticamente los que falten al añadir vocabulario, en vez de solo avisar.
+- **Sinónimos:** HSK2 solo los tiene en 14 de 198 palabras y HSK3 en 1 de 499. Se pueden completar generando solo esas columnas con el prompt de [Añadir vocabulario](#añadir-vocabulario-o-un-nivel-nuevo).
+- **Gramática:** un mazo complementario con los puntos gramaticales de cada nivel (了, 吗, 的, clasificadores...).
+- **HSK5 y HSK6:** mismo proceso que HSK1–4.
