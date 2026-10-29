@@ -10,10 +10,15 @@ import zipfile
 from pathlib import Path
 from typing import Iterable, Optional
 
-import genanki
 import pandas as pd
 
+try:
+    import genanki
+except ImportError:
+    raise SystemExit('genanki is required to build decks: pip install -e ".[deck]"')
+
 from zhongwen_anki import hanzi_writer
+from zhongwen_anki.card_types import CARD_TYPES
 from zhongwen_anki.enrich import DEFAULT_TARGET_LANG, GUID_COL, TRANSLATABLE_FIELDS, output_columns
 
 MODEL_ID = 1607392319
@@ -32,25 +37,8 @@ DECK_IDS = {
 TEMPLATE_DIR = Path(__file__).resolve().parent.parent.parent / "card_template"
 SHARED_DIR = TEMPLATE_DIR / "_shared"
 
-# (template name, folder under card_template/). Order matters: cards.ord is
-# this list's index, used to label reviews by card type in
-# export_stats.CARD_TYPE_BY_ORD without depending on genanki. Only ever
-# APPEND new templates here -- never reorder or insert in the middle, or
-# existing cards' `ord` (and their whole review history/scheduling) would
-# silently point at the wrong template next time this deck is rebuilt and
-# reimported.
-TEMPLATES = [
-    ("H2M", "h2m"),
-    ("M2H", "m2h"),
-    ("H2P", "h2p"),
-    ("PM2H", "pm2h"),
-    ("P2M", "p2m"),
-    ("M2P", "m2p"),
-    ("P2H", "p2h"),
-    ("HM2P", "hm2p"),
-    ("HP2M", "hp2m"),
-    ("Toda la información", "all_information"),
-]
+# (template name, folder under card_template/), in `ord` order: see card_types.
+TEMPLATES = [(code, folder) for code, folder, _ in CARD_TYPES]
 
 # `<!-- include: name -->` pulls in card_template/_shared/name.html, so the
 # blocks every card repeats (details, the "Unhide" button, the level badge,
@@ -205,7 +193,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("-i", "--input", type=Path, required=True, metavar="OUTPUT.tsv")
     parser.add_argument("-o", "--output", type=Path, required=True, metavar="DECK.apkg")
     parser.add_argument(
-        "--level", type=str, default="HSK1", metavar="LEVEL",
+        "--level", type=str.upper, default="HSK1", metavar="LEVEL",
         help=f"HSK level tag/deck for these notes. Known levels: {', '.join(DECK_IDS)}. Default: HSK1.",
     )
     parser.add_argument(

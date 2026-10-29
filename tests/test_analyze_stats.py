@@ -1,11 +1,11 @@
-"""Tests for zhongwen_anki.analyze_stats (promoted from WIP)."""
+"""Tests for the learning report: zhongwen_anki.analyze_stats and its metrics and charts."""
 import csv
 from datetime import date
 
 import pandas as pd
 import pytest
 
-from zhongwen_anki import analyze_stats
+from zhongwen_anki import analyze_stats, stats_charts, stats_metrics
 from zhongwen_anki import export_stats
 
 
@@ -92,7 +92,7 @@ def test_load_maps_legacy_card_type_names_to_codes(tmp_path):
 
 def test_overview_counts_reviews_and_accuracy(sample_csv):
     df, _ = analyze_stats.load(sample_csv)
-    ov = analyze_stats.overview(df)
+    ov = stats_metrics.overview(df)
     assert ov["total_reviews"] == 11
     assert ov["unique_words"] == 3
     assert ov["overall_accuracy"] == pytest.approx(6 / 11)
@@ -101,13 +101,13 @@ def test_overview_counts_reviews_and_accuracy(sample_csv):
 def test_overview_on_empty_dataframe(sample_csv):
     df, _ = analyze_stats.load(sample_csv)
     empty = df.iloc[0:0]
-    assert analyze_stats.overview(empty) == {"total_reviews": 0}
+    assert stats_metrics.overview(empty) == {"total_reviews": 0}
 
 
 def test_overview_calculates_streaks(sample_csv):
     df, _ = analyze_stats.load(sample_csv)
     # Use today=Aug 5 so the streak is alive
-    ov = analyze_stats.overview(df, today=date(2026, 8, 5))
+    ov = stats_metrics.overview(df, today=date(2026, 8, 5))
     # Reviews on Aug 1-5, so current streak = 5 and longest = 5
     assert ov["current_streak"] == 5
     assert ov["longest_streak"] == 5
@@ -115,7 +115,7 @@ def test_overview_calculates_streaks(sample_csv):
 
 def test_overview_includes_button_counts(sample_csv):
     df, _ = analyze_stats.load(sample_csv)
-    ov = analyze_stats.overview(df)
+    ov = stats_metrics.overview(df)
     assert ov["total_good"] == 6
     assert ov["total_again"] == 5
 
@@ -125,7 +125,7 @@ def test_overview_includes_button_counts(sample_csv):
 
 def test_accuracy_by_card_type_flags_the_weaker_skill(sample_csv):
     df, _ = analyze_stats.load(sample_csv)
-    g = analyze_stats.accuracy_by(df, "card_type")
+    g = stats_metrics.accuracy_by(df, "card_type")
     worst = g.iloc[0]
     assert worst["card_type"] == "H2P"
     assert worst["accuracy"] == pytest.approx(0.0)
@@ -135,7 +135,7 @@ def test_accuracy_by_card_type_flags_the_weaker_skill(sample_csv):
 
 def test_accuracy_by_weekday(sample_csv):
     df, _ = analyze_stats.load(sample_csv)
-    g = analyze_stats.accuracy_by_weekday(df)
+    g = stats_metrics.accuracy_by_weekday(df)
     assert not g.empty
     assert "weekday" in g.columns
     assert "accuracy" in g.columns
@@ -143,7 +143,7 @@ def test_accuracy_by_weekday(sample_csv):
 
 def test_accuracy_by_hour(sample_csv):
     df, _ = analyze_stats.load(sample_csv)
-    g = analyze_stats.accuracy_by_hour(df)
+    g = stats_metrics.accuracy_by_hour(df)
     assert not g.empty
     assert "hour" in g.columns
 
@@ -153,7 +153,7 @@ def test_accuracy_by_hour(sample_csv):
 
 def test_retention_by_interval_buckets_positive_review_intervals(sample_csv):
     df, _ = analyze_stats.load(sample_csv)
-    g = analyze_stats.retention_by_interval(df)
+    g = stats_metrics.retention_by_interval(df)
     assert g["reviews"].sum() == 11
     assert set(g["bucket"].astype(str)) <= {"1d", "2-3d", "4-7d", "8-30d", ">30d"}
 
@@ -163,7 +163,7 @@ def test_retention_by_interval_ignores_non_review_types(sample_csv):
     df = pd.concat([df, pd.DataFrame([{
         **df.iloc[0].to_dict(), "review_type": "learning", "last_interval": -600,
     }])], ignore_index=True)
-    g = analyze_stats.retention_by_interval(df)
+    g = stats_metrics.retention_by_interval(df)
     assert g["reviews"].sum() == 11
 
 
@@ -172,7 +172,7 @@ def test_retention_by_interval_ignores_non_review_types(sample_csv):
 
 def test_daily_trend_has_one_row_per_calendar_day(sample_csv):
     df, _ = analyze_stats.load(sample_csv)
-    daily = analyze_stats.daily_trend(df)
+    daily = stats_metrics.daily_trend(df)
     assert len(daily) == 5  # Aug 1-5
     assert daily["reviews"].sum() == 11
     assert "accuracy_7d" in daily.columns
@@ -183,20 +183,20 @@ def test_daily_trend_has_one_row_per_calendar_day(sample_csv):
 
 def test_hardest_words_surfaces_the_leech(sample_csv):
     df, _ = analyze_stats.load(sample_csv)
-    hard = analyze_stats.hardest_words(df, min_reviews=3)
+    hard = stats_metrics.hardest_words(df, min_reviews=3)
     assert hard.iloc[0]["word"] == "好"
     assert hard.iloc[0]["agains"] == 5
 
 
 def test_hardest_words_excludes_low_review_count(sample_csv):
     df, _ = analyze_stats.load(sample_csv)
-    hard = analyze_stats.hardest_words(df, min_reviews=3)
+    hard = stats_metrics.hardest_words(df, min_reviews=3)
     assert "了" not in hard["word"].tolist()
 
 
 def test_most_lapsed_words(sample_csv):
     df, _ = analyze_stats.load(sample_csv)
-    lapsed = analyze_stats.most_lapsed_words(df, min_lapses=2)
+    lapsed = stats_metrics.most_lapsed_words(df, min_lapses=2)
     assert not lapsed.empty
     assert lapsed.iloc[0]["word"] == "好"
     assert lapsed.iloc[0]["agains"] == 5
@@ -204,7 +204,7 @@ def test_most_lapsed_words(sample_csv):
 
 def test_mastery_curve(sample_csv):
     df, _ = analyze_stats.load(sample_csv)
-    mastery = analyze_stats.mastery_curve(df, consecutive_correct=5)
+    mastery = stats_metrics.mastery_curve(df, mastery_streak=5)
     assert not mastery.empty
     assert "mastered" in mastery.columns
     # 你 has 5 consecutive correct on H2M
@@ -214,13 +214,13 @@ def test_mastery_curve(sample_csv):
 
 def test_mastery_curve_empty():
     empty = pd.DataFrame(columns=["word", "card_type", "is_correct", "review_datetime"])
-    mastery = analyze_stats.mastery_curve(empty)
+    mastery = stats_metrics.mastery_curve(empty)
     assert mastery.empty
 
 
 def test_lapse_history(sample_csv):
     df, _ = analyze_stats.load(sample_csv)
-    lapses = analyze_stats.lapse_history(df)
+    lapses = stats_metrics.lapse_history(df)
     assert not lapses.empty
     assert lapses["word"].tolist().count("好") == 5
     assert "lapse_number" in lapses.columns
@@ -228,7 +228,7 @@ def test_lapse_history(sample_csv):
 
 def test_words_needing_attention(sample_csv):
     df, _ = analyze_stats.load(sample_csv)
-    attn = analyze_stats.words_needing_attention(df, min_reviews=3)
+    attn = stats_metrics.words_needing_attention(df, min_reviews=3)
     # 好 should be flagged (0% accuracy, 5 lapses)
     assert not attn.empty
     assert "好" in attn["word"].tolist()
@@ -239,7 +239,7 @@ def test_words_needing_attention(sample_csv):
 
 def test_tone_analysis_without_pinyin(sample_csv):
     df, _ = analyze_stats.load(sample_csv)
-    tone = analyze_stats.tone_analysis(df)
+    tone = stats_metrics.tone_analysis(df)
     assert tone.empty  # No pinyin column in sample CSV
 
 
@@ -258,7 +258,7 @@ def test_tone_analysis_with_pinyin(tmp_path):
     rows.append(vrow(6, "你", "ni3", "tú", 1, ease_label="Good"))
     _write_csv(path, rows, vocab_columns)
     df, _ = analyze_stats.load(path)
-    tone = analyze_stats.tone_analysis(df)
+    tone = stats_metrics.tone_analysis(df)
     assert not tone.empty
     assert "tone_pattern" in tone.columns
 
@@ -273,7 +273,7 @@ def test_character_difficulty(tmp_path):
                      3, "Good", True, 1, 10, 5, 250.0, 3.0, "review"])
     _write_csv(path, rows)
     df, _ = analyze_stats.load(path)
-    char_diff = analyze_stats.character_difficulty(df)
+    char_diff = stats_metrics.character_difficulty(df)
     assert not char_diff.empty
     assert "char" in char_diff.columns
     assert "你" in char_diff["char"].tolist()
@@ -281,7 +281,7 @@ def test_character_difficulty(tmp_path):
 
 def test_response_time_analysis(sample_csv):
     df, _ = analyze_stats.load(sample_csv)
-    g = analyze_stats.response_time_analysis(df)
+    g = stats_metrics.response_time_analysis(df)
     assert not g.empty
     assert "avg_time_correct" in g.columns
     assert "avg_time_incorrect" in g.columns
@@ -294,14 +294,14 @@ def test_recommendations_empty_data(tmp_path):
     path = tmp_path / "empty.csv"
     _write_csv(path, [])
     df, _ = analyze_stats.load(path)
-    recs = analyze_stats.generate_recommendations(df)
+    recs = stats_metrics.generate_recommendations(df)
     assert len(recs) == 1
     assert "aún no hay datos" in recs[0]["message"].lower()
 
 
 def test_recommendations_low_accuracy(sample_csv):
     df, _ = analyze_stats.load(sample_csv)
-    recs = analyze_stats.generate_recommendations(df)
+    recs = stats_metrics.generate_recommendations(df)
     # With ~55% accuracy, should have a low accuracy alert
     alert_recs = [r for r in recs if r["type"] == "alert"]
     assert len(alert_recs) > 0
@@ -309,7 +309,7 @@ def test_recommendations_low_accuracy(sample_csv):
 
 def test_recommendations_weak_skills(sample_csv):
     df, _ = analyze_stats.load(sample_csv)
-    recs = analyze_stats.generate_recommendations(df)
+    recs = stats_metrics.generate_recommendations(df)
     # H2P is 0% accuracy, should be flagged as weak
     warning_recs = [r for r in recs if r["type"] == "warning"]
     assert len(warning_recs) > 0
@@ -378,14 +378,14 @@ def test_main_errors_when_input_missing(tmp_path, monkeypatch):
 
 
 def test_max_consecutive():
-    assert analyze_stats._max_consecutive(pd.Series([True, True, False, True])) == 2
-    assert analyze_stats._max_consecutive(pd.Series([False, False])) == 0
-    assert analyze_stats._max_consecutive(pd.Series([True, True, True])) == 3
+    assert stats_metrics._max_consecutive(pd.Series([True, True, False, True])) == 2
+    assert stats_metrics._max_consecutive(pd.Series([False, False])) == 0
+    assert stats_metrics._max_consecutive(pd.Series([True, True, True])) == 3
 
 
 def test_level_sort_key():
-    assert analyze_stats._level_sort_key("HSK1") < analyze_stats._level_sort_key("HSK2")
-    assert analyze_stats._level_sort_key("Sin nivel") == 999
+    assert stats_metrics.level_sort_key("HSK1") < stats_metrics.level_sort_key("HSK2")
+    assert stats_metrics.level_sort_key("Sin nivel") == 999
 
 
 # --- Tone analysis with accented pinyin (pinyin_to_numbered) ---
@@ -408,25 +408,25 @@ def test_tone_analysis_with_accented_pinyin(tmp_path):
                      "nǐhǎo", "hello", "hola", "HSK1", "你", "", "", ""])
     _write_csv(path, rows, vocab_columns)
     df, _ = analyze_stats.load(path)
-    tone = analyze_stats.tone_analysis(df)
+    tone = stats_metrics.tone_analysis(df)
     assert not tone.empty
     assert "tone_pattern" in tone.columns
     # Should have patterns "4-4" and "3-3"
     assert "4-4" in tone["tone_pattern"].tolist() or "3-3" in tone["tone_pattern"].tolist()
 
 
-# --- Mastery curve: position not consecutive_correct ---
+# --- Mastery curve ---
 
 
 def test_mastery_curve_reports_position():
     """mastery_curve should report the position (review number) where mastery was reached,
-    not the consecutive_correct count."""
+    not the length of the streak."""
     df = pd.DataFrame([
         {"review_datetime": pd.Timestamp(f"2026-08-{d:02d}"), "note_id": 1, "card_type": "H2M",
          "word": "你", "is_correct": correct, "review_type": "review"}
         for d, correct in enumerate([False, True, True, True, True, True], 1)
     ])
-    mastery = analyze_stats.mastery_curve(df, mastery_streak=4)
+    mastery = stats_metrics.mastery_curve(df, mastery_streak=4)
     assert len(mastery) == 1
     # Position where 4 consecutive correct was reached: reviews 2,3,4,5 -> position=5
     assert mastery["reviews_to_mastery"].iloc[0] == 5
@@ -443,12 +443,12 @@ def test_streak_with_today_parameter():
     ])
     from datetime import date
     # Reference date = Aug 5, streak should be alive
-    result = analyze_stats._calculate_streaks(df, today=date(2026, 8, 5))
+    result = stats_metrics._calculate_streaks(df, today=date(2026, 8, 5))
     assert result["alive"] is True
     assert result["current"] == 5
 
     # Reference date = Aug 10, streak should be broken
-    result = analyze_stats._calculate_streaks(df, today=date(2026, 8, 10))
+    result = stats_metrics._calculate_streaks(df, today=date(2026, 8, 10))
     assert result["alive"] is False
     assert "last_ended" in result
 
@@ -460,7 +460,7 @@ def test_badge_html_not_escaped_in_table(sample_csv):
     """Badge HTML in attention table should NOT be escaped."""
     df, _ = analyze_stats.load(sample_csv)
     # Force words needing attention by lowering threshold
-    attn = analyze_stats.words_needing_attention(df, min_reviews=1)
+    attn = stats_metrics.words_needing_attention(df, min_reviews=1)
     if attn.empty:
         pytest.skip("No words needing attention in sample data")
     table_html = analyze_stats._table_html(attn, {
@@ -495,7 +495,7 @@ def test_hardest_words_groups_by_note_id(tmp_path):
     ]
     _write_csv(path, rows)
     df, _ = analyze_stats.load(path)
-    hard = analyze_stats.hardest_words(df, min_reviews=3)
+    hard = stats_metrics.hardest_words(df, min_reviews=3)
     # Should have 2 groups: note_id=1 (H2M) and note_id=2 (H2P)
     assert len(hard) == 2
     assert hard[hard["note_id"] == 1]["accuracy"].iloc[0] == pytest.approx(0.0)
@@ -518,7 +518,7 @@ def test_filter_user_answers_excludes_system_actions(tmp_path):
     ]
     _write_csv(path, rows)
     df, _ = analyze_stats.load(path)
-    filtered = analyze_stats.filter_user_answers(df)
+    filtered = stats_metrics.filter_user_answers(df)
     assert len(filtered) == 1
     assert filtered.iloc[0]["review_type"] == "review"
 
@@ -537,7 +537,7 @@ def test_exclude_info_only_from_accuracy(tmp_path):
     ]
     _write_csv(path, rows)
     df, _ = analyze_stats.load(path)
-    accuracy_df = analyze_stats.exclude_info_only(df)
+    accuracy_df = stats_metrics.exclude_info_only(df)
     assert len(accuracy_df) == 1
     assert accuracy_df.iloc[0]["card_type"] == "H2M"
 
@@ -560,9 +560,9 @@ def test_mastery_streak_flag(sample_csv):
     """mastery_curve should respect mastery_streak parameter."""
     df, _ = analyze_stats.load(sample_csv)
     # With streak=3
-    m3 = analyze_stats.mastery_curve(df, mastery_streak=3)
+    m3 = stats_metrics.mastery_curve(df, mastery_streak=3)
     # With streak=5
-    m5 = analyze_stats.mastery_curve(df, mastery_streak=5)
+    m5 = stats_metrics.mastery_curve(df, mastery_streak=5)
     mastered_3 = m3["mastered"].sum()
     mastered_5 = m5["mastered"].sum()
     # More (or equal) combos should be mastered with lower streak
@@ -586,7 +586,7 @@ def test_low_ease_detection_with_cards_df(tmp_path):
         {"ease_factor_percent": "140.0", "fsrs_stability": "", "fsrs_difficulty": ""}
         for _ in range(15)
     ])
-    recs = analyze_stats.generate_recommendations(df, cards_df=cards_df)
+    recs = stats_metrics.generate_recommendations(df, cards_df=cards_df)
     ease_hell_recs = [r for r in recs if "ease hell" in r.get("title", "").lower()]
     assert len(ease_hell_recs) > 0
 
@@ -595,7 +595,7 @@ def test_low_ease_detection_with_cards_df(tmp_path):
         {"ease_factor_percent": "140.0", "fsrs_stability": "1.5", "fsrs_difficulty": "2.0"}
         for _ in range(15)
     ])
-    recs = analyze_stats.generate_recommendations(df, cards_df=cards_df_fsrs)
+    recs = stats_metrics.generate_recommendations(df, cards_df=cards_df_fsrs)
     ease_hell_recs = [r for r in recs if "ease hell" in r.get("title", "").lower()]
     assert len(ease_hell_recs) == 0
 
@@ -606,8 +606,8 @@ def test_low_ease_detection_with_cards_df(tmp_path):
 def test_hour_chart_produces_matplotlib_output(sample_csv):
     """chart_hour should produce a base64-encoded PNG."""
     df, _ = analyze_stats.load(sample_csv)
-    hour_df = analyze_stats.accuracy_by_hour(df)
-    chart_uri = analyze_stats.chart_hour(hour_df)
+    hour_df = stats_metrics.accuracy_by_hour(df)
+    chart_uri = stats_charts.chart_hour(hour_df)
     assert chart_uri.startswith("data:image/png;base64,")
 
 
@@ -617,7 +617,7 @@ def test_hour_chart_produces_matplotlib_output(sample_csv):
 def test_response_time_analysis_uses_unstack(sample_csv):
     """response_time_analysis should produce correct columns."""
     df, _ = analyze_stats.load(sample_csv)
-    g = analyze_stats.response_time_analysis(df)
+    g = stats_metrics.response_time_analysis(df)
     assert not g.empty
     assert "avg_time_correct" in g.columns
     assert "avg_time_incorrect" in g.columns
@@ -639,7 +639,7 @@ def test_character_difficulty_uses_explode(tmp_path):
                      3, "Good", True, 1, 10, 5, 250.0, 3.0, "review"])
     _write_csv(path, rows)
     df, _ = analyze_stats.load(path)
-    char_diff = analyze_stats.character_difficulty(df)
+    char_diff = stats_metrics.character_difficulty(df)
     assert not char_diff.empty
     assert "char" in char_diff.columns
     # Should have individual characters: 你, 好, 世, 界
@@ -653,7 +653,7 @@ def test_character_difficulty_uses_explode(tmp_path):
 def test_retention_buckets_have_labels_and_sample_sizes(sample_csv):
     """retention_by_interval should produce labeled buckets with sample sizes."""
     df, _ = analyze_stats.load(sample_csv)
-    retention = analyze_stats.retention_by_interval(df)
+    retention = stats_metrics.retention_by_interval(df)
     assert not retention.empty
     assert "bucket" in retention.columns
     assert "reviews" in retention.columns
@@ -672,7 +672,7 @@ def test_generate_recommendations_does_not_modify_original(sample_csv):
     df, _ = analyze_stats.load(sample_csv)
     original_len = len(df)
     original_cols = list(df.columns)
-    recs = analyze_stats.generate_recommendations(df)
+    recs = stats_metrics.generate_recommendations(df)
     assert len(recs) > 0
     # Original df should be unchanged
     assert len(df) == original_len
@@ -704,7 +704,7 @@ def test_end_to_end_synthetic_collection(tmp_path):
     """Create a synthetic collection, export CSV, analyze, and verify HTML output."""
     import sqlite3 as sqlite3_mod
 
-    # Step 1: Create synthetic in-memory SQLite collection
+    # Create synthetic in-memory SQLite collection
     collection = tmp_path / "collection.anki2"
     con = sqlite3_mod.connect(collection)
     con.execute("CREATE TABLE col (id INTEGER, crt INTEGER)")
@@ -734,23 +734,23 @@ def test_end_to_end_synthetic_collection(tmp_path):
     con.commit()
     con.close()
 
-    # Step 2: Export reviews CSV
+    # Export reviews CSV
     reviews_csv = tmp_path / "reviews.csv"
     cards_csv = tmp_path / "cards.csv"
     num_reviews = export_stats.export_reviews(collection, reviews_csv)
     assert num_reviews == 14  # 7 days * 2 cards
     export_stats.export_card_snapshot(collection, cards_csv)
 
-    # Step 3: Load and analyze
+    # Load and analyze
     df, cards = analyze_stats.load(reviews_csv, cards_csv)
     assert len(df) == 14
     assert cards is not None
 
-    # Step 4: Build report
+    # Build report
     from datetime import date as dt_date
     report = analyze_stats.build_report_html(df, cards, today=dt_date(2026, 8, 10))
 
-    # Step 5: Verify HTML contains expected elements
+    # Verify HTML contains expected elements
     assert "<!doctype html>" in report.lower()
     assert "Informe de aprendizaje" in report
     assert "data:image/png;base64," in report
@@ -762,7 +762,7 @@ def test_end_to_end_synthetic_collection(tmp_path):
     assert "lapsos" not in report or "Fallos (Again)" in report
 
 
-# --- Plan v3, C.3: regression tests for report changes --------------------
+# --- Report regressions ---
 
 
 def test_broken_streak_current_zero(tmp_path):
@@ -772,7 +772,7 @@ def test_broken_streak_current_zero(tmp_path):
     rows = [_row(day, "你", "H2M", "Good", 1) for day in range(1, 6)]
     _write_csv(path, rows)
     df, _ = analyze_stats.load(path)
-    streaks = analyze_stats._calculate_streaks(df, today=date(2026, 8, 20))
+    streaks = stats_metrics._calculate_streaks(df, today=date(2026, 8, 20))
     assert streaks["current"] == 0
     assert streaks["alive"] is False
     report = analyze_stats.build_report_html(df, today=date(2026, 8, 20))
@@ -800,7 +800,7 @@ def test_insufficient_data_first_rec_is_warning(tmp_path):
     rows = [_row(day, "好", "H2P", "Again", 0) for day in range(1, 4)]
     _write_csv(path, rows)
     df, _ = analyze_stats.load(path)
-    recs = analyze_stats.generate_recommendations(df, today=date(2026, 8, 20))
+    recs = stats_metrics.generate_recommendations(df, today=date(2026, 8, 20))
     assert recs[0]["title"] == "Datos aún escasos"
     assert all(r.get("priority", "low") != "high" for r in recs)
     report = analyze_stats.build_report_html(df, today=date(2026, 8, 20))
@@ -851,7 +851,7 @@ def test_relearning_only_affects_matching_card_type(tmp_path):
         "type": [2, 3],
         "ease_factor_percent": [250, 250],
     })
-    attn = analyze_stats.words_needing_attention(df, cards, min_reviews=5)
+    attn = stats_metrics.words_needing_attention(df, cards, min_reviews=5)
     # Both (note 10, H2M) and (note 10, M2P) are flagged for low accuracy.
     assert len(attn) == 2
     with_relearning = attn[attn["reasons"].str.contains("en relearning")]
@@ -895,7 +895,7 @@ def test_legacy_csv_without_new_columns(tmp_path):
                  0, "", 0, 10, 5, 0.0, 0.0, "rescheduled"])
     _write_csv(path, rows, legacy_cols)
     df, _ = analyze_stats.load(path)
-    user = analyze_stats.filter_user_answers(df)
+    user = stats_metrics.filter_user_answers(df)
     assert len(user) == 6
     report = analyze_stats.build_report_html(df)
     assert '<div class="value">6</div><div class="label">Repasos totales</div>' in report
@@ -907,7 +907,7 @@ def test_chart_hard_words_title_uses_min_reviews(tmp_path, monkeypatch):
     rows = [_row(day, "好", "H2P", "Again", 0) for day in range(1, 8)]
     _write_csv(path, rows)
     df, _ = analyze_stats.load(path)
-    hard = analyze_stats.hardest_words(df, min_reviews=7)
+    hard = stats_metrics.hardest_words(df, min_reviews=7)
     assert not hard.empty
     captured = {}
 
@@ -915,8 +915,8 @@ def test_chart_hard_words_title_uses_min_reviews(tmp_path, monkeypatch):
         captured["fig"] = fig
         return "data:image/png;base64,FAKE"
 
-    monkeypatch.setattr(analyze_stats, "_fig_to_data_uri", fake_fig_to_uri)
-    analyze_stats.chart_hard_words(hard, min_reviews=7)
+    monkeypatch.setattr(stats_charts, "_fig_to_data_uri", fake_fig_to_uri)
+    stats_charts.chart_hard_words(hard, min_reviews=7)
     assert "mín. 7 repasos" in captured["fig"].axes[0].get_title()
 
 

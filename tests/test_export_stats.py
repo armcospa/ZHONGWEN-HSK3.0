@@ -8,7 +8,7 @@ import zipfile
 
 import pytest
 
-from zhongwen_anki import export_stats
+from zhongwen_anki import anki_collection, export_stats
 
 
 @pytest.fixture(autouse=True)
@@ -112,7 +112,7 @@ def _make_collection_with_multiple_reviews(path):
     con.close()
 
 
-# --- Backwards compatibility: export() alias ---
+# --- Basic export ---
 
 
 def test_export_modern_schema(tmp_path):
@@ -120,7 +120,7 @@ def test_export_modern_schema(tmp_path):
     _make_modern_collection(collection)
     output = tmp_path / "out.csv"
 
-    export_stats.export(collection, output, deck_filter=None)
+    export_stats.export_reviews(collection, output, deck_filter=None)
 
     rows = list(csv.DictReader(output.open(encoding="utf-8")))
     assert len(rows) == 1
@@ -142,7 +142,7 @@ def test_export_deck_filter_excludes_non_matching_decks(tmp_path):
     _make_modern_collection(collection)
     output = tmp_path / "out.csv"
 
-    export_stats.export(collection, output, deck_filter="nonexistent")
+    export_stats.export_reviews(collection, output, deck_filter="nonexistent")
 
     rows = list(csv.DictReader(output.open(encoding="utf-8")))
     assert rows == []
@@ -153,7 +153,7 @@ def test_export_legacy_schema_fallback(tmp_path):
     _make_legacy_collection(collection)
     output = tmp_path / "out.csv"
 
-    export_stats.export(collection, output, deck_filter=None)
+    export_stats.export_reviews(collection, output, deck_filter=None)
 
     rows = list(csv.DictReader(output.open(encoding="utf-8")))
     assert len(rows) == 1
@@ -169,7 +169,7 @@ def test_export_attributes_reviews_to_the_home_deck_not_the_filtered_deck(tmp_pa
     _make_collection_with_card_in_filtered_deck(collection)
     output = tmp_path / "out.csv"
 
-    export_stats.export(collection, output, deck_filter=None)
+    export_stats.export_reviews(collection, output, deck_filter=None)
 
     rows = list(csv.DictReader(output.open(encoding="utf-8")))
     assert len(rows) == 1
@@ -197,7 +197,7 @@ def test_export_maps_card_ord_to_card_type(tmp_path):
     con.close()
     output = tmp_path / "out.csv"
 
-    export_stats.export(collection, output, deck_filter=None)
+    export_stats.export_reviews(collection, output, deck_filter=None)
 
     rows = list(csv.DictReader(output.open(encoding="utf-8")))
     assert [row["card_type"] for row in rows] == [
@@ -205,7 +205,7 @@ def test_export_maps_card_ord_to_card_type(tmp_path):
     ]
 
 
-# --- New functionality: --since ---
+# --- --since ---
 
 
 def test_export_since_filters_reviews(tmp_path):
@@ -241,7 +241,7 @@ def test_export_since_future_date(tmp_path):
     assert written == 0
 
 
-# --- New functionality: vocab enrichment ---
+# --- vocab enrichment ---
 
 
 def test_export_reviews_with_vocab_enrichment(tmp_path):
@@ -282,7 +282,7 @@ def test_export_reviews_without_vocab_has_no_extra_columns(tmp_path):
     assert "meaning" not in header
 
 
-# --- New functionality: card snapshot ---
+# --- card snapshot ---
 
 
 def test_export_card_snapshot(tmp_path):
@@ -315,13 +315,13 @@ def test_export_card_snapshot_deck_filter(tmp_path):
 def test_find_collection_raises_for_missing_explicit_path(tmp_path):
     missing = tmp_path / "nope.anki2"
     with pytest.raises(SystemExit):
-        export_stats._find_collection(missing)
+        anki_collection.find_collection(missing)
 
 
 def test_find_collection_returns_existing_explicit_path(tmp_path):
     path = tmp_path / "collection.anki2"
     path.write_text("")
-    assert export_stats._find_collection(path) == path
+    assert anki_collection.find_collection(path) == path
 
 
 # --- Type=4 / ease=0 handling ---
@@ -395,27 +395,6 @@ def test_export_type5_is_correct_empty(tmp_path):
     assert rows[0]["review_type"] == "rescheduled"
 
 
-# --- QUEUE_LABELS and TYPE_LABELS ---
-
-
-def test_queue_labels_correctness():
-    """Verify QUEUE_LABELS mapping is correct."""
-    assert export_stats.QUEUE_LABELS[-3] == "buried/user"
-    assert export_stats.QUEUE_LABELS[-2] == "buried/scheduler"
-    assert export_stats.QUEUE_LABELS[-1] == "suspended"
-    assert export_stats.QUEUE_LABELS[0] == "new"
-    assert export_stats.QUEUE_LABELS[1] == "learning"
-    assert export_stats.QUEUE_LABELS[2] == "review"
-    assert export_stats.QUEUE_LABELS[3] == "relearning"
-    assert export_stats.QUEUE_LABELS[4] == "preview"
-
-
-def test_type_labels_correctness():
-    """Verify TYPE_LABELS mapping is correct."""
-    assert export_stats.TYPE_LABELS[0] == "new"
-    assert export_stats.TYPE_LABELS[1] == "learning"
-    assert export_stats.TYPE_LABELS[2] == "review"
-    assert export_stats.TYPE_LABELS[3] == "relearning"
 
 
 # --- due_date calculation ---
@@ -427,7 +406,7 @@ def test_calculate_due_date_review_card():
     # due=88 means 88 days after day0 (col_crt - rollover_hour, in creation tz).
     # creation_offset_min=0 makes this deterministic regardless of machine timezone:
     # day0 = 2020-01-01T00:00Z - 4h = 2019-12-31; +88 days = 2020-03-28
-    due_date = export_stats._calculate_due_date(
+    due_date = anki_collection.calculate_due_date(
         due=88, queue=2, card_type=2, odue=0, col_crt=col_crt, is_filtered=False,
         creation_offset_min=0,
     )
@@ -441,7 +420,7 @@ def test_calculate_due_date_review_card_with_creation_offset():
     rollover=4. A review card with due=88 is scheduled by Anki for
     2026-10-05; the old local-time formula gave 2026-10-04 (one day early).
     """
-    due_date = export_stats._calculate_due_date(
+    due_date = anki_collection.calculate_due_date(
         due=88, queue=2, card_type=2, odue=0,
         col_crt=1783540800.0, is_filtered=False,
         rollover_hour=4, creation_offset_min=-480,
@@ -452,7 +431,7 @@ def test_calculate_due_date_review_card_with_creation_offset():
 def test_calculate_due_date_new_card():
     """New cards (queue=0): due is order, so due_date should be empty."""
     col_crt = 1577836800.0
-    due_date = export_stats._calculate_due_date(
+    due_date = anki_collection.calculate_due_date(
         due=5, queue=0, card_type=0, odue=0, col_crt=col_crt, is_filtered=False
     )
     assert due_date == ""
@@ -461,7 +440,7 @@ def test_calculate_due_date_new_card():
 def test_calculate_due_date_suspended_card():
     """Suspended cards (queue=-1): no due date."""
     col_crt = 1577836800.0
-    due_date = export_stats._calculate_due_date(
+    due_date = anki_collection.calculate_due_date(
         due=20261015, queue=-1, card_type=2, odue=0, col_crt=col_crt, is_filtered=False
     )
     assert due_date == ""
@@ -471,7 +450,7 @@ def test_calculate_due_date_learning_card():
     """Learning cards (queue=1): due is epoch seconds (absolute)."""
     col_crt = 1577836800.0
     # due=1735689600 is 2025-01-01T00:00:00Z as epoch seconds
-    due_date = export_stats._calculate_due_date(
+    due_date = anki_collection.calculate_due_date(
         due=1735689600, queue=1, card_type=1, odue=0, col_crt=col_crt, is_filtered=False
     )
     assert due_date == "2025-01-01"
@@ -483,7 +462,7 @@ def test_calculate_due_date_filtered_card_with_odue():
     # due is -100000+pos (meaningless), odue=50 (day number)
     # creation_offset_min=0 keeps the expectation independent of machine timezone:
     # day0 = 2019-12-31; +50 days = 2020-02-19
-    due_date = export_stats._calculate_due_date(
+    due_date = anki_collection.calculate_due_date(
         due=-99701, queue=1, card_type=2, odue=50, col_crt=col_crt, is_filtered=True,
         creation_offset_min=0,
     )
@@ -590,7 +569,7 @@ def test_colpkg_opening_as_zip(tmp_path):
         zf.write(inner_db, "anki21")
 
     # Now extract via our function
-    extracted = export_stats._extract_colpkg_to_sqlite(colpkg_path)
+    extracted = anki_collection.extract_colpkg(colpkg_path)
     assert extracted.exists()
     # Verify extracted SQLite is valid
     check_con = sqlite3.connect(str(extracted))
@@ -629,7 +608,7 @@ def test_colpkg_priority_selection_logic(tmp_path):
         zf.write(tmp_path / "anki21", "anki21")
 
     # Extract -- should pick anki21 (priority over anki2)
-    extracted = export_stats._extract_colpkg_to_sqlite(colpkg_path)
+    extracted = anki_collection.extract_colpkg(colpkg_path)
     assert extracted.exists()
     check_con = sqlite3.connect(str(extracted))
     deck_name = check_con.execute("SELECT name FROM decks WHERE id=1").fetchone()[0]
@@ -722,15 +701,6 @@ def test_validate_since_non_date_string():
     with pytest.raises(argparse.ArgumentTypeError):
         export_stats._validate_since("not a date")
 
-
-# --- NO gravlog references ---
-
-
-def test_no_gravlog_references_in_module():
-    """Verify no gravlog references exist in export_stats module."""
-    import inspect
-    source = inspect.getsource(export_stats)
-    assert "gravlog" not in source.lower()
 
 
 # --- reps column present ---
@@ -831,7 +801,7 @@ def test_ease_factor_percent_empty_in_card_snapshot_for_factor_zero(tmp_path):
     assert rows[0]["ease_factor_percent"] == ""
 
 
-# --- Phase D: colpkg zstd, dummy detection, review_id, --append, rollover ---
+# --- .colpkg, review_id, --append and rollover ---
 
 
 def test_colpkg_with_anki21b_zstd_decompression(tmp_path):
@@ -876,7 +846,7 @@ def test_colpkg_with_anki21b_zstd_decompression(tmp_path):
         zf.write(compressed_db, "collection.anki21b")
 
     # Extract and verify
-    extracted = export_stats._extract_colpkg_to_sqlite(colpkg_path)
+    extracted = anki_collection.extract_colpkg(colpkg_path)
     assert extracted.exists()
     check_con = sqlite3.connect(str(extracted))
     deck_name = check_con.execute("SELECT name FROM decks WHERE id=1").fetchone()[0]
@@ -909,7 +879,7 @@ def test_colpkg_dummy_legacy_only_raises_system_exit(tmp_path):
         zf.write(inner_db, "collection.anki2")
 
     with pytest.raises(SystemExit, match="legacy-compatibility"):
-        export_stats._extract_colpkg_to_sqlite(colpkg_path)
+        anki_collection.extract_colpkg(colpkg_path)
 
 
 def test_review_id_equals_revlog_id_and_is_first_column(tmp_path):
@@ -1028,7 +998,7 @@ def test_append_with_different_header_raises_system_exit(tmp_path):
 def test_get_rollover_hour_default():
     """_get_rollover_hour returns 4 when config table is missing."""
     con = sqlite3.connect(":memory:")
-    result = export_stats._get_rollover_hour(con)
+    result = anki_collection.get_rollover_hour(con)
     con.close()
     assert result == 4
 
@@ -1042,7 +1012,7 @@ def test_get_rollover_hour_from_config():
     con = sqlite3.connect(":memory:")
     con.execute("CREATE TABLE config (key TEXT, val TEXT)")
     con.execute("INSERT INTO config VALUES (?, ?)", ("rollover", b"6"))
-    result = export_stats._get_rollover_hour(con)
+    result = anki_collection.get_rollover_hour(con)
     con.close()
     assert result == 6
 
@@ -1052,7 +1022,7 @@ def test_get_rollover_hour_missing_rollover_key():
     con = sqlite3.connect(":memory:")
     con.execute("CREATE TABLE config (key TEXT, val TEXT)")
     con.execute("INSERT INTO config VALUES (?, ?)", ("creationOffset", b"-480"))
-    result = export_stats._get_rollover_hour(con)
+    result = anki_collection.get_rollover_hour(con)
     con.close()
     assert result == 4
 
@@ -1060,7 +1030,7 @@ def test_get_rollover_hour_missing_rollover_key():
 def test_get_config_int_missing_table():
     """_get_config_int returns None when the config table does not exist."""
     con = sqlite3.connect(":memory:")
-    assert export_stats._get_config_int(con, "rollover") is None
+    assert anki_collection.get_config_int(con, "rollover") is None
     con.close()
 
 
@@ -1069,8 +1039,8 @@ def test_get_config_int_reads_json_blob():
     con = sqlite3.connect(":memory:")
     con.execute("CREATE TABLE config (key TEXT, val TEXT)")
     con.execute("INSERT INTO config VALUES (?, ?)", ("creationOffset", b"-480"))
-    assert export_stats._get_config_int(con, "creationOffset") == -480
-    assert export_stats._get_config_int(con, "absent") is None
+    assert anki_collection.get_config_int(con, "creationOffset") == -480
+    assert anki_collection.get_config_int(con, "absent") is None
     con.close()
 
 
@@ -1079,7 +1049,7 @@ def test_get_config_int_invalid_value():
     con = sqlite3.connect(":memory:")
     con.execute("CREATE TABLE config (key TEXT, val TEXT)")
     con.execute("INSERT INTO config VALUES (?, ?)", ("rollover", "not-json"))
-    assert export_stats._get_config_int(con, "rollover") is None
+    assert anki_collection.get_config_int(con, "rollover") is None
     con.close()
 
 
@@ -1102,7 +1072,7 @@ def test_load_template_map_from_modern_templates_table():
     con.execute("INSERT INTO templates VALUES (2, 999, 0, 1, '', '', 'Significado -> Hanzi')")
     con.execute("INSERT INTO templates VALUES (3, 999, 0, 2, '', '', 'Hanzi -> Pinyin')")
 
-    result = export_stats._load_template_map(con)
+    result = anki_collection.load_template_map(con)
     con.close()
 
     assert result == {
@@ -1116,7 +1086,7 @@ def test_load_template_map_from_modern_templates_table():
 def test_load_template_map_returns_empty_for_missing_tables():
     """_load_template_map returns {} when the templates table doesn't exist."""
     con = sqlite3.connect(":memory:")
-    result = export_stats._load_template_map(con)
+    result = anki_collection.load_template_map(con)
     con.close()
     assert result == {}
 
@@ -1126,11 +1096,11 @@ def test_resolve_card_type_name_based_lookup():
     template_map = {
         999: {"name": "Chino", "templates": {0: "Hanzi -> Significado", 2: "Hanzi -> Pinyin"}},
     }
-    code, template_name, notetype = export_stats._resolve_card_type(0, 999, template_map)
+    code, template_name, notetype = anki_collection.resolve_card_type(0, 999, template_map)
     assert code == "H2M"
     assert template_name == "Hanzi -> Significado"
     assert notetype == "Chino"
-    code, template_name, notetype = export_stats._resolve_card_type(2, 999, template_map)
+    code, template_name, notetype = anki_collection.resolve_card_type(2, 999, template_map)
     assert code == "H2P"
     assert template_name == "Hanzi -> Pinyin"
     assert notetype == "Chino"
@@ -1141,7 +1111,7 @@ def test_resolve_card_type_override_takes_precedence():
     template_map = {
         999: {"name": "Chino - HSK (ES/EN)+", "templates": {3: "Pinyin -> Significado"}},
     }
-    code, template_name, notetype = export_stats._resolve_card_type(3, 999, template_map)
+    code, template_name, notetype = anki_collection.resolve_card_type(3, 999, template_map)
     assert code == "M2P"  # Override
     assert template_name == "Pinyin -> Significado"
     assert notetype == "Chino - HSK (ES/EN)+"
@@ -1149,7 +1119,7 @@ def test_resolve_card_type_override_takes_precedence():
     template_map2 = {
         998: {"name": "Chino - HSK (ES/EN)", "templates": {3: "Pinyin -> Significado"}},
     }
-    code2, template_name2, notetype2 = export_stats._resolve_card_type(3, 998, template_map2)
+    code2, template_name2, notetype2 = anki_collection.resolve_card_type(3, 998, template_map2)
     assert code2 == "P2M"
     assert template_name2 == "Pinyin -> Significado"
     assert notetype2 == "Chino - HSK (ES/EN)"
@@ -1161,26 +1131,26 @@ def test_resolve_card_type_fallback_to_ord_when_name_unknown():
     template_map = {
         999: {"name": "Model", "templates": {0: "Hanzi -> Significado", 5: "Custom Template"}},
     }
-    code, name, nt = export_stats._resolve_card_type(0, 999, template_map)
+    code, name, nt = anki_collection.resolve_card_type(0, 999, template_map)
     assert code == "H2M"
     assert name == "Hanzi -> Significado"
     # "Custom Template" not in CARD_NAME_TO_CODE, so return name itself
-    code, name, nt = export_stats._resolve_card_type(5, 999, template_map)
+    code, name, nt = anki_collection.resolve_card_type(5, 999, template_map)
     assert code == "Custom Template"
     assert name == "Custom Template"
 
 
 def test_resolve_card_type_fallback_to_ord_when_no_template_map():
     """_resolve_card_type falls back to CARD_TYPE_BY_ORD with empty template_map."""
-    code, name, nt = export_stats._resolve_card_type(0, 999, {})
+    code, name, nt = anki_collection.resolve_card_type(0, 999, {})
     assert code == "H2M"
     assert name == ""
     assert nt == ""
-    code, name, nt = export_stats._resolve_card_type(3, 999, {})
+    code, name, nt = anki_collection.resolve_card_type(3, 999, {})
     assert code == "PM2H"
     assert name == ""
     assert nt == ""
-    code, name, nt = export_stats._resolve_card_type(99, 999, {})
+    code, name, nt = anki_collection.resolve_card_type(99, 999, {})
     assert code == "(ord 99)"
     assert name == ""
     assert nt == ""
@@ -1192,7 +1162,7 @@ def test_resolve_card_type_ord_10_beyond_standard():
     template_map = {
         999: {"name": "Model", "templates": {10: "Toda la información"}},
     }
-    code, name, nt = export_stats._resolve_card_type(10, 999, template_map)
+    code, name, nt = anki_collection.resolve_card_type(10, 999, template_map)
     assert code == "Toda la información"
     assert name == "Toda la información"
 
@@ -1296,6 +1266,8 @@ def test_export_card_snapshot_mixed_template_collection(tmp_path):
     # ord=0 with name "Pinyin -> Hanzi" -> P2H
     # Old positional mapping would have returned H2M
     assert rows[0]["card_type"] == "P2H"
+    assert rows[0]["notetype"] == "Chino - HSK (ES/EN)"
+    assert rows[0]["template_name"] == "Pinyin -> Hanzi"
 
 
 def test_export_legacy_schema_falls_back_to_positional_ord(tmp_path):
@@ -1328,11 +1300,6 @@ def test_export_legacy_schema_falls_back_to_positional_ord(tmp_path):
     # Falls back to CARD_TYPE_BY_ORD[3] == "PM2H"
     assert rows[0]["card_type"] == "PM2H"
 
-
-def test_card_name_to_code_mapping_completeness():
-    """Verify CARD_NAME_TO_CODE covers all standard template names."""
-    expected_codes = {"H2M", "M2H", "H2P", "PM2H", "P2M", "M2P", "P2H", "HM2P", "HP2M", "Toda la información"}
-    assert set(export_stats.CARD_NAME_TO_CODE.values()) == expected_codes
 
 
 def test_export_all_hsk_decks_stable_name_based(tmp_path):

@@ -20,8 +20,12 @@ src/zhongwen_anki/
 ├── build_all.py       # zhongwen-anki-build-all: todos los niveles de una vez
 ├── hanzi_writer.py    # bloque HanziWriter + datos de trazos, generado en memoria
 ├── utilities.py       # segmentación (jieba), pinyin (pypinyin) y coloreado por tono
+├── card_types.py      # tipos de tarjeta (código, carpeta, descripción), en orden de `ord`
+├── anki_collection.py # lectura de la colección de Anki (.anki2 / .colpkg)
 ├── export_stats.py    # zhongwen-anki-export-stats
-└── analyze_stats.py   # zhongwen-anki-analyze-stats
+├── stats_metrics.py   # métricas y recomendaciones del informe
+├── stats_charts.py    # gráficos del informe (matplotlib)
+└── analyze_stats.py   # zhongwen-anki-analyze-stats: informe HTML
 card_template/
 ├── <código>/front.html, back.html   # una carpeta por tipo de tarjeta
 ├── _shared/                         # bloques comunes que se incluyen en las plantillas
@@ -50,8 +54,8 @@ data/hskN/input.tsv --zhongwen-anki--> data/hskN/output.tsv --zhongwen-anki-buil
 
 La especificación funcional (qué muestra y qué pide cada tarjeta) está en [`docs/tarjetas/README.md`](docs/tarjetas/README.md).
 
-- Cada tipo de tarjeta tiene su carpeta en `card_template/` con `front.html` y `back.html`. La lista ordenada de tipos está en `TEMPLATES` (`build_deck.py`).
-- **Solo se añaden tipos al final de `TEMPLATES`.** Anki identifica las tarjetas de una nota por su posición (`ord`): reordenar o insertar en medio haría que el historial de una tarjeta pasara a otra. Al añadir uno, actualiza también `CARD_NAME_TO_CODE` y `CARD_TYPE_BY_ORD` (`export_stats.py`), `CARD_TYPE_DESCRIPTIONS` (`analyze_stats.py`), `EXPECTED_TEMPLATE_NAMES` (`tests/test_build_deck.py`) y la documentación.
+- Cada tipo de tarjeta tiene su carpeta en `card_template/` con `front.html` y `back.html`. La lista ordenada de tipos está en `CARD_TYPES` (`card_types.py`), de la que tiran tanto la generación de mazos como las estadísticas.
+- **Solo se añaden tipos al final de `CARD_TYPES`.** Anki identifica las tarjetas de una nota por su posición (`ord`): reordenar o insertar en medio haría que el historial de una tarjeta pasara a otra. Al añadir uno, actualiza también `EXPECTED_TEMPLATE_NAMES` (`tests/test_build_deck.py`) y la documentación.
 - Los bloques repetidos viven en `card_template/_shared/` y se incluyen con un comentario `<!-- include: nombre -->`, que `build_deck.py` sustituye al empaquetar:
 
 | Include | Contenido |
@@ -84,7 +88,7 @@ Ya ocurría antes de la versión 0.4.0, aunque no estaba documentado: cada tipo 
 
 Reglas para cambiar la estructura:
 
-- **Solo se añade al final**, tanto en `TEMPLATES` (`build_deck.py`) como en `output_columns` (`enrich.py`). No se quitan ni se reordenan campos o tipos de tarjeta: las tarjetas guardan su historial por posición, y una fusión con elementos desplazados podría asignarlos mal.
+- **Solo se añade al final**, tanto en `CARD_TYPES` (`card_types.py`) como en `output_columns` (`enrich.py`). No se quitan ni se reordenan campos o tipos de tarjeta: las tarjetas guardan su historial por posición, y una fusión con elementos desplazados podría asignarlos mal.
 - **Agrupa los cambios de estructura** en una misma versión, para que los usuarios fusionen y hagan la sincronización completa una sola vez.
 - **Avísalo en el README** (sección *Actualizar un mazo ya importado*) indicando qué cambia.
 - **Pruébalo antes en un perfil de Anki aparte**: importa la versión publicada, estudia unas tarjetas, importa la nueva con *Merge note types* y comprueba que no hay notas duplicadas ni un segundo tipo de nota, que los campos de una nota conservan su contenido y que el historial de las tarjetas estudiadas sigue ahí.
