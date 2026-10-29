@@ -13,7 +13,6 @@
 |---|---|
 | `input.tsv` | Vocabulario fuente, con el esquema descrito en [`CONTRIBUTING.md`](../../CONTRIBUTING.md#añadir-vocabulario-o-un-nivel-nuevo). La columna `Guid` es el identificador permanente de cada nota en Anki: no la edites. |
 | `output.tsv` | Generado por `zhongwen-anki` (ignorado por git). |
-| `input_cumulative.tsv` | Exploración previa que unía HSK1–HSK4 en un solo fichero (1.995 filas, columna `SourceLevel`). Se conserva como referencia; **no** forma parte del pipeline. |
 
 ## Regenerar
 

@@ -97,7 +97,7 @@ def _transform_row(row: pd.Series, target_lang: str = DEFAULT_TARGET_LANG) -> di
         "Pinyin": row["Pinyin"],
         "Meaning": row["Meaning"],
         _lang_col("Meaning", target_lang): row[_lang_col("Meaning", target_lang)],
-        "Hint": row["Simplified"][0],
+        "Hint": row["Simplified"][:1],
         # Sentence
         "SentenceSimplified": words_to_hanzi(sentence_words),
         "SentenceSimplifiedColored": words_to_colored_hanzi(sentence_words, sep=""),
