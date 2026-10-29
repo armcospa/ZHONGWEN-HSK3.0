@@ -104,7 +104,7 @@ class Character:
 
     @property
     def hanzi_marked(self) -> str:
-        """Return `<mark class="toneN">char</mark>` with N = self.tone."""
+        """Return `<mark class="tone-N">char</mark>` with N = self.tone."""
         return f'<mark class="tone-{self.tone}">{html.escape(self.hanzi)}</mark>'
 
 
@@ -117,19 +117,24 @@ class Word:
     def __iter__(self):
         return iter(self.parts)
 
-def _is_chinese_character(ch: str) -> bool:
-    """Return *True* iff *ch* is in any UCS block that contains Hanzi."""
-    ranges = (
-        ("\u4E00", "\u9FFF"),   # CJK Unified Ideographs
-        ("\u3400", "\u4DBF"),   # Extension A
-        ("\u20000", "\u2A6DF"), # Extension B
-        ("\u2A700", "\u2B73F"), # Extension C
-        ("\u2B740", "\u2B81F"), # Extension D
-        ("\u2B820", "\u2CEAF"), # Extension E
-        ("\u2CEB0", "\u2EBEF"), # Extension F
-        ("\uF900", "\uFAFF"),   # Compatibility Ideographs
-    )
-    return any(start <= ch <= end for start, end in ranges)
+
+# Code point ranges of the Unicode blocks that contain Hanzi.
+_HANZI_RANGES = (
+    (0x4E00, 0x9FFF),    # CJK Unified Ideographs
+    (0x3400, 0x4DBF),    # Extension A
+    (0x20000, 0x2A6DF),  # Extension B
+    (0x2A700, 0x2B73F),  # Extension C
+    (0x2B740, 0x2B81F),  # Extension D
+    (0x2B820, 0x2CEAF),  # Extension E
+    (0x2CEB0, 0x2EBEF),  # Extension F
+    (0xF900, 0xFAFF),    # Compatibility Ideographs
+)
+
+
+def is_chinese_character(ch: str) -> bool:
+    """Return *True* iff *ch* is in any Unicode block that contains Hanzi."""
+    code = ord(ch)
+    return any(start <= code <= end for start, end in _HANZI_RANGES)
 
 
 def _tone_from_numbered_tone(pinyin: str) -> int:
@@ -184,7 +189,7 @@ def sentence_to_words(
     idx = 0          # cursor into pinyin_* lists
 
     for tok in tokens:
-        if any(_is_chinese_character(c) for c in tok):
+        if any(is_chinese_character(c) for c in tok):
             # ---------------- Chinese word ----------------
             parts: List[Character] = []
             for ch in tok:
@@ -234,15 +239,8 @@ def words_to_pinyin(
     -------
     str
         The pinyin representation with tone marks; non-Chinese substrings
-        are preserved verbatim.
-
-    Notes
-    -----
-    • Setting *char_sep* and *word_sep* to the same value reproduces the
-      original behaviour.
-    • Example:
-        `words_to_pinyin(words, char_sep="", word_sep=" ")`
-        → `"ni shi wo de pengyou"`
+        are preserved verbatim. For example, "你是我的朋友。" gives
+        "nǐ shì wǒ de péngyou。".
     """
     result = ""
     glue_next = True  # no separator before the first segment
@@ -270,8 +268,8 @@ def words_to_colored_hanzi(
 ) -> str:
     """Return `sentence_text` where every Hanzi is wrapped in <mark class="tone-N">.
 
-    *sep* joins the converted segments – use a single space for sentence &
-    dictionary fields, and empty string for headwords.  If *escape_non_chinese*
+    *sep* joins the converted segments (empty by default, so the text keeps
+    its original spacing).  If *escape_non_chinese*
     is False, non-Chinese substrings are inserted verbatim (useful for the
     synonym field which already contains its own HTML & punctuation).
     """
@@ -291,7 +289,7 @@ def process_synonyms(synonym_string: str) -> str:
     Example input
         "矢量 (shǐ liàng) - vector<br>量向 (liàng xiàng) - vector"
 
-    Returns the same string with Hanzi wrapped in `<mark class="toneN">…</mark>`.
+    Returns the same string with Hanzi wrapped in `<mark class="tone-N">…</mark>`.
     """
     if not synonym_string:
         return ""
@@ -304,44 +302,4 @@ def process_synonyms(synonym_string: str) -> str:
         colored_entries.append(words_to_colored_hanzi(words, escape_non_chinese=False))
 
     return "<br>".join(colored_entries)
-
-
-if __name__ == '__main__':
-
-    def debug_word_repr(words):
-        repr_lines = []
-        for w in words:
-            if w.is_chinese:
-                chars_info = ",".join(f"{c.hanzi}({c.pinyin},{c.tone})" for c in w.parts)  # type: ignore[arg-type]
-                repr_lines.append(f"CN[{chars_info}]")
-            else:
-                repr_lines.append(f"TXT[{w.raw}]")
-        return " | ".join(repr_lines)
-
-
-    examples = [
-        "你好世界",
-        "你好，世界！",
-        "我喜欢Python和C++。",
-        "你好   世界",
-        "  leading and trailing spaces  ",
-        "你好，世界！123 numbers"
-    ]
-
-    outputs = []
-
-    for sent in examples:
-        words = sentence_to_words(sent)
-        outputs.append({
-            "Sentence": sent,
-            "WordList": debug_word_repr(words),
-            "Simplified": words_to_hanzi(words),
-            "Pinyin": words_to_pinyin(words),
-            "HTML": words_to_colored_hanzi(words)
-        })
-
-    import pandas as pd
-
-    df = pd.DataFrame(outputs)
-    print(df)
 

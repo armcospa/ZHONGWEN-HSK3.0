@@ -7,6 +7,7 @@ from zhongwen_anki.utilities import (
     words_to_hanzi,
     words_to_pinyin,
     pinyin_to_numbered,
+    is_chinese_character,
 )
 
 
@@ -79,3 +80,18 @@ def test_words_to_pinyin_attaches_punctuation_to_the_previous_word():
     assert " 。" not in pinyin and " ！" not in pinyin and " ：" not in pinyin
     assert pinyin.endswith("ba。")
     assert "“nǐhǎo！”" in pinyin
+
+
+@pytest.mark.parametrize("char", ["你", "㐀", "𠀀", "𪜀", "豈"])
+def test_is_chinese_character_accepts_hanzi_from_every_block(char):
+    assert is_chinese_character(char)
+
+
+@pytest.mark.parametrize("char", ["“", "”", "…", "—", "€", "，", "a", "1"])
+def test_is_chinese_character_rejects_punctuation_and_latin(char):
+    assert not is_chinese_character(char)
+
+
+def test_words_to_colored_hanzi_does_not_color_punctuation():
+    html = words_to_colored_hanzi(sentence_to_words("他说：“你好……”"))
+    assert html.count('<mark class="tone-') == 4
