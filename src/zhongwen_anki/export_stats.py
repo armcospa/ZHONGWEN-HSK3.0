@@ -1,8 +1,9 @@
 """Export Anki's review history (revlog) to CSV for external analysis.
 
-Reads the local collection.anki2 (read-only, so it is safe even while Anki is
-running) or a .colpkg bundle, and writes one row per review, joined with the
-deck name, the note's first field (the Chinese word) and the card type code.
+Reads the local collection.anki2 (read-only; Anki locks the profile it has
+open, so close Anki or switch profiles first) or a .colpkg bundle, and writes
+one row per review, joined with the deck name, the note's first field (the
+Chinese word) and the card type code.
 
 Usage:
     zhongwen-anki-export-stats

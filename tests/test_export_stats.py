@@ -1446,3 +1446,16 @@ def test_main_rejects_sqlite_without_revlog(tmp_path, monkeypatch):
     con.close()
     with pytest.raises(SystemExit, match="is not a valid Anki collection"):
         _run_main(monkeypatch, "--collection", other, "-o", tmp_path / "out.csv")
+
+
+def test_main_reports_a_collection_locked_by_anki(tmp_path, monkeypatch):
+    collection = tmp_path / "collection.anki2"
+    _make_modern_collection(collection)
+    lock = sqlite3.connect(collection)
+    lock.execute("BEGIN EXCLUSIVE")  # what Anki does with the profile it has open
+    try:
+        with pytest.raises(SystemExit, match="locked by Anki"):
+            _run_main(monkeypatch, "--collection", collection, "-o", tmp_path / "out.csv")
+    finally:
+        lock.rollback()
+        lock.close()

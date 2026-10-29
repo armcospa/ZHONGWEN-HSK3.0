@@ -22,7 +22,7 @@ TEMPLATE_OVERRIDES = {
 
 
 def connect_readonly(collection_path: Path) -> sqlite3.Connection:
-    """Open the collection read-only, so it is safe even while Anki is running."""
+    """Open the collection read-only, so this tool never modifies it."""
     con = sqlite3.connect(f"file:{collection_path.as_posix()}?mode=ro", uri=True)
     con.row_factory = sqlite3.Row
     return con
@@ -155,6 +155,16 @@ def validate_collection(collection_path: Path, shown_path: Path) -> None:
             con.execute("SELECT 1 FROM revlog LIMIT 1").fetchall()
         finally:
             con.close()
+    except sqlite3.OperationalError as e:
+        if "locked" in str(e):
+            raise SystemExit(
+                f"{shown_path} is locked by Anki. Close Anki (or switch to another "
+                "profile) and try again."
+            )
+        raise SystemExit(
+            f"{shown_path} is not a valid Anki collection "
+            "(expected collection.anki2 or a .colpkg bundle)."
+        )
     except sqlite3.DatabaseError:
         # Not SQLite at all, or SQLite without a revlog table
         # (OperationalError is a DatabaseError subclass).
